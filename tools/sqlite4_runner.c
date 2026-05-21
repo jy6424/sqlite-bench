@@ -21,7 +21,20 @@ typedef struct RandomGenerator {
 
 static const char* plan_dir = NULL;
 static const char* db_path = "sqlite4-bench.db";
+static const char* benchmarks_arg =
+    "fillseq,fillrandom,readrandom,readseq";
+static int num_arg = 1000000;
+static int reads_arg = -1;
+static int value_size_arg = 100;
+static double compression_ratio_arg = 0.5;
 static sqlite4* db = NULL;
+
+static const char* kSchemaSql =
+    "CREATE TABLE test (key blob, value blob, PRIMARY KEY (key));";
+static const char* kWriteSql =
+    "REPLACE INTO test (key, value) VALUES (?, ?)";
+static const char* kReadSql =
+    "SELECT * FROM test WHERE key = ?";
 
 static uint64_t now_micros(void) {
   struct timeval tv;
@@ -135,6 +148,13 @@ static char* path_join(const char* dir, const char* name) {
   return path;
 }
 
+static char* string_dup(const char* s) {
+  char* copy = malloc(strlen(s) + 1);
+  if (copy == NULL) die("malloc failed");
+  strcpy(copy, s);
+  return copy;
+}
+
 static char* read_file(const char* path) {
   FILE* file = fopen(path, "rb");
   if (file == NULL) {
@@ -170,20 +190,24 @@ static void recreate_db(void) {
   close_db();
   unlink(db_path);
   open_db();
-  char* schema_path = path_join(plan_dir, "schema.sql");
-  char* schema = read_file(schema_path);
-  check_db(sqlite4_exec(db, schema, 0, 0), "schema");
-  free(schema);
-  free(schema_path);
+  if (plan_dir != NULL) {
+    char* schema_path = path_join(plan_dir, "schema.sql");
+    char* schema = read_file(schema_path);
+    check_db(sqlite4_exec(db, schema, 0, 0), "schema");
+    free(schema);
+    free(schema_path);
+  } else {
+    check_db(sqlite4_exec(db, kSchemaSql, 0, 0), "schema");
+  }
 }
 
-static void run_one(const char* name, const char* sql_file, const char* op,
+static void run_one_sql(const char* name, const char* sql, const char* op,
                     const char* key_order, int operations, int value_size,
                     int seed, double compression_ratio) {
   bool is_write = strcmp(op, "write") == 0;
   bool is_random = strcmp(key_order, "random") == 0;
   Random rnd;
-  RandomGenerator gen;
+  RandomGenerator gen = {0};
   sqlite4_stmt* stmt = NULL;
 
   if (is_write) {
@@ -194,8 +218,6 @@ static void run_one(const char* name, const char* sql_file, const char* op,
   }
   rand_init(&rnd, (uint32_t)seed);
 
-  char* sql_path = path_join(plan_dir, sql_file);
-  char* sql = read_file(sql_path);
   check_db(sqlite4_prepare(db, sql, -1, &stmt, 0), "sqlite4_prepare");
   if (stmt == NULL) die("empty SQL statement");
 
@@ -239,9 +261,51 @@ static void run_one(const char* name, const char* sql_file, const char* op,
   }
 
   check_db(sqlite4_finalize(stmt), "sqlite4_finalize");
+  if (is_write) free(gen.data_);
+}
+
+static void run_one_plan(const char* name, const char* sql_file, const char* op,
+                         const char* key_order, int operations, int value_size,
+                         int seed, double compression_ratio) {
+  char* sql_path = path_join(plan_dir, sql_file);
+  char* sql = read_file(sql_path);
+  run_one_sql(name, sql, op, key_order, operations, value_size, seed,
+              compression_ratio);
   free(sql);
   free(sql_path);
-  if (is_write) free(gen.data_);
+}
+
+static void run_direct_benchmark(const char* name) {
+  int reads = reads_arg < 0 ? num_arg : reads_arg;
+  if (!strcmp(name, "fillseq")) {
+    run_one_sql("fillseq", kWriteSql, "write", "sequential", num_arg,
+                value_size_arg, 301, compression_ratio_arg);
+  } else if (!strcmp(name, "fillrandom")) {
+    run_one_sql("fillrandom", kWriteSql, "write", "random", num_arg,
+                value_size_arg, 301, compression_ratio_arg);
+  } else if (!strcmp(name, "readrandom")) {
+    run_one_sql("readrandom", kReadSql, "read", "random", reads,
+                value_size_arg, 301, compression_ratio_arg);
+  } else if (!strcmp(name, "readseq")) {
+    run_one_sql("readseq", kReadSql, "read", "sequential", reads,
+                value_size_arg, 301, compression_ratio_arg);
+  } else if (strcmp(name, "")) {
+    fprintf(stderr, "unknown benchmark '%s'\n", name);
+    exit(1);
+  }
+}
+
+static void run_direct(void) {
+  char* benchmarks = string_dup(benchmarks_arg);
+  char* cursor = benchmarks;
+  while (cursor != NULL) {
+    char* sep = strchr(cursor, ',');
+    if (sep != NULL) *sep = '\0';
+    run_direct_benchmark(cursor);
+    cursor = sep == NULL ? NULL : sep + 1;
+  }
+  free(benchmarks);
+  close_db();
 }
 
 static void run_plan(void) {
@@ -263,8 +327,8 @@ static void run_plan(void) {
       tok = strtok(NULL, "\t\r\n");
     }
     if (n < 9) continue;
-    run_one(fields[0], fields[1], fields[2], fields[3], atoi(fields[4]),
-            atoi(fields[5]), atoi(fields[6]), atof(fields[7]));
+    run_one_plan(fields[0], fields[1], fields[2], fields[3], atoi(fields[4]),
+                 atoi(fields[5]), atoi(fields[6]), atof(fields[7]));
   }
   fclose(file);
   free(plan_path);
@@ -272,13 +336,27 @@ static void run_plan(void) {
 }
 
 static void usage(const char* argv0) {
-  fprintf(stderr, "Usage: %s --plan=DIR --db=PATH\n", argv0);
+  fprintf(stderr,
+          "Usage: %s [--benchmarks=LIST] [--num=N] [--reads=N] "
+          "[--value_size=N] [--db=PATH]\n"
+          "       %s --plan=DIR [--db=PATH]\n",
+          argv0, argv0);
 }
 
 int main(int argc, char** argv) {
   for (int i = 1; i < argc; i++) {
     if (strncmp(argv[i], "--plan=", 7) == 0) {
       plan_dir = argv[i] + 7;
+    } else if (strncmp(argv[i], "--benchmarks=", 13) == 0) {
+      benchmarks_arg = argv[i] + 13;
+    } else if (strncmp(argv[i], "--num=", 6) == 0) {
+      num_arg = atoi(argv[i] + 6);
+    } else if (strncmp(argv[i], "--reads=", 8) == 0) {
+      reads_arg = atoi(argv[i] + 8);
+    } else if (strncmp(argv[i], "--value_size=", 13) == 0) {
+      value_size_arg = atoi(argv[i] + 13);
+    } else if (strncmp(argv[i], "--compression_ratio=", 20) == 0) {
+      compression_ratio_arg = atof(argv[i] + 20);
     } else if (strncmp(argv[i], "--db=", 5) == 0) {
       db_path = argv[i] + 5;
     } else {
@@ -286,11 +364,10 @@ int main(int argc, char** argv) {
       return 1;
     }
   }
-  if (plan_dir == NULL) {
-    usage(argv[0]);
-    return 1;
+  if (plan_dir != NULL) {
+    run_plan();
+  } else {
+    run_direct();
   }
-
-  run_plan();
   return 0;
 }

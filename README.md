@@ -109,3 +109,32 @@ $ ./sqlite4-runner --plan=sql-plan --db=sqlite4-bench.db
 The runner prepares each template SQL statement once and then repeats
 `bind/step/reset`, matching the original benchmark structure more closely than
 executing expanded SQL text line by line.
+
+## Running Prepared Workloads Directly
+
+Use the prepared runners to execute the same workload shape for SQLite3 and
+SQLite4 without generating a SQL plan:
+
+```sh
+$ make sqlite3-runner
+$ ./sqlite3-runner \
+    --benchmarks=fillrandom,readrandom,readseq \
+    --num=1000000 \
+    --value_size=1024 \
+    --db=sqlite3-runner.db
+```
+
+```sh
+$ make sqlite4-runner \
+    SQLITE4_CFLAGS="-I/path/to/sqlite4" \
+    SQLITE4_LDFLAGS="/path/to/sqlite4/libsqlite4.a -llz4 -lz -lpthread -ldl -lm"
+
+$ ./sqlite4-runner \
+    --benchmarks=fillrandom,readrandom,readseq \
+    --num=1000000 \
+    --value_size=1024 \
+    --db=sqlite4-runner.db
+```
+
+Both runners prepare `REPLACE INTO test (key, value) VALUES (?, ?)` or
+`SELECT * FROM test WHERE key = ?` once, then repeat `bind/step/reset`.
