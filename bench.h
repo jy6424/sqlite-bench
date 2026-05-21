@@ -106,6 +106,9 @@ extern char* FLAGS_db;
 // Save reusable SQL templates and benchmark metadata to this directory.
 extern char* FLAGS_save_sql;
 
+// Save expanded SQL statements with literal key/value blobs to this directory.
+extern char* FLAGS_save_sql_full;
+
 /* benchmark.c */
 void benchmark_init(void);
 void benchmark_fini(void);
@@ -129,6 +132,7 @@ void raw_print(FILE *, Raw *);
 
 /* sql_plan.c */
 void save_sql_plan(void);
+void save_sql_full(void);
 
 /* random.c */
 void rand_init(Random*, uint32_t);

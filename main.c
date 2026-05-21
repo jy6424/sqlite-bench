@@ -64,6 +64,9 @@ char* FLAGS_db;
 // Save reusable SQL templates and benchmark metadata to this directory.
 char* FLAGS_save_sql;
 
+// Save expanded SQL statements with literal key/value blobs to this directory.
+char* FLAGS_save_sql_full;
+
 void init() {
   // Comma-separated list of operations to run in the specified order
   //   Actual benchmarks:
@@ -109,6 +112,7 @@ void init() {
   FLAGS_WAL_enabled = true;
   FLAGS_db = NULL;
   FLAGS_save_sql = NULL;
+  FLAGS_save_sql_full = NULL;
 }
 
 void print_usage(const char* argv0) {
@@ -129,6 +133,7 @@ void print_usage(const char* argv0) {
   fprintf(stderr, "  --WAL_enabled={0,1}\t\tenable WAL\n");
   fprintf(stderr, "  --db=PATH\t\t\tpath to location databases are created\n");
   fprintf(stderr, "  --save_sql=DIR\t\tsave SQL templates and benchmark metadata\n");
+  fprintf(stderr, "  --save_sql_full=DIR\t\tsave expanded SQL statements\n");
   fprintf(stderr, "  --help\t\t\tshow this help\n");
   fprintf(stderr, "\n");
   fprintf(stderr, "[BENCH]\n");
@@ -189,6 +194,8 @@ int main(int argc, char** argv) {
       FLAGS_db = argv[i] + 5;
     } else if (strncmp(argv[i], "--save_sql=", 11) == 0) {
       FLAGS_save_sql = argv[i] + 11;
+    } else if (strncmp(argv[i], "--save_sql_full=", 16) == 0) {
+      FLAGS_save_sql_full = argv[i] + 16;
     } else if (!strcmp(argv[i], "--help")) {
       print_usage(argv[0]);
       exit(0);
@@ -204,6 +211,11 @@ int main(int argc, char** argv) {
 
   if (FLAGS_save_sql != NULL) {
     save_sql_plan();
+    return 0;
+  }
+
+  if (FLAGS_save_sql_full != NULL) {
+    save_sql_full();
     return 0;
   }
 

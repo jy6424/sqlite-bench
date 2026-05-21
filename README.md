@@ -33,6 +33,7 @@ SQLite3 benchmark tool
   --WAL_enabled={0,1}           enable WAL
   --db=PATH                     path to location databases are created
   --save_sql=DIR                save SQL templates and benchmark metadata
+  --save_sql_full=DIR           save expanded SQL statements
   --help                        show this help
 
 [BENCH]
@@ -67,3 +68,17 @@ This writes files such as `schema.sql`, `fillseq.sql`, `fillrandom.sql`,
 `readseq.sql`, `readrandom.sql`, and `benchmarks.tsv`. The SQL templates use
 parameters; the sequential/random behavior is described in `benchmarks.tsv` and
 must be reproduced by the runner when binding keys.
+
+Use `--save_sql_full=DIR` to export complete SQL statements with key and value
+blobs encoded as `X'...'` literals.
+
+```sh
+$ ./sqlite-bench \
+    --benchmarks=fillseq,fillrandom,readrandom,readseq \
+    --num=1000 \
+    --value_size=1024 \
+    --save_sql_full=sql-full
+```
+
+For large write benchmarks, expanded SQL files can be much larger than the raw
+data because each byte is written as two hexadecimal characters.

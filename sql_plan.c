@@ -21,6 +21,16 @@ static const char* kWriteSql =
 static const char* kReadSql =
     "SELECT * FROM test WHERE key = ?;\n";
 
+enum SqlFullOp {
+  SQL_FULL_WRITE,
+  SQL_FULL_READ
+};
+
+enum SqlFullOrder {
+  SQL_FULL_SEQUENTIAL,
+  SQL_FULL_RANDOM
+};
+
 static void ensure_dir(const char* dir) {
   if (mkdir(dir, 0755) != 0 && errno != EEXIST) {
     fprintf(stderr, "mkdir error for '%s': %s\n", dir, strerror(errno));
@@ -86,6 +96,56 @@ static void write_metadata_row(FILE* file, const char* name,
           name, sql_file, op, key_order, operations, value_size,
           FLAGS_compression_ratio,
           FLAGS_transaction ? "transaction_enabled" : "transaction_disabled");
+}
+
+static void write_hex(FILE* file, const char* data, int len) {
+  static const char kHex[] = "0123456789ABCDEF";
+  for (int i = 0; i < len; i++) {
+    unsigned char c = (unsigned char)data[i];
+    fputc(kHex[c >> 4], file);
+    fputc(kHex[c & 0x0f], file);
+  }
+}
+
+static FILE* open_output_file(const char* dir, const char* name) {
+  char* path = path_join(dir, name);
+  FILE* file = fopen(path, "w");
+  if (file == NULL) {
+    fprintf(stderr, "open error for '%s': %s\n", path, strerror(errno));
+    exit(1);
+  }
+  free(path);
+  return file;
+}
+
+static void write_full_sql_file(const char* dir, const char* name,
+                                int op, int order, int operations,
+                                int value_size, Random* rnd,
+                                RandomGenerator* gen) {
+  char file_name[100];
+  snprintf(file_name, sizeof(file_name), "%s.sql", name);
+
+  FILE* file = open_output_file(dir, file_name);
+  for (int i = 0; i < operations; i++) {
+    int k = order == SQL_FULL_SEQUENTIAL ? i : (int)(rand_next(rnd) % operations);
+    char key[100];
+    snprintf(key, sizeof(key), "%016d", k);
+
+    if (op == SQL_FULL_WRITE) {
+      char* value = rand_gen_generate(gen, value_size);
+      fprintf(file, "REPLACE INTO test (key, value) VALUES (X'");
+      write_hex(file, key, 16);
+      fprintf(file, "', X'");
+      write_hex(file, value, value_size);
+      fprintf(file, "');\n");
+      free(value);
+    } else {
+      fprintf(file, "SELECT * FROM test WHERE key = X'");
+      write_hex(file, key, 16);
+      fprintf(file, "';\n");
+    }
+  }
+  fclose(file);
 }
 
 void save_sql_plan() {
@@ -157,4 +217,61 @@ void save_sql_plan() {
       "seed `301`.\n");
 
   fprintf(stderr, "Saved SQL plan to %s\n", FLAGS_save_sql);
+}
+
+void save_sql_full() {
+  int reads = FLAGS_reads < 0 ? FLAGS_num : FLAGS_reads;
+  Random rnd;
+  RandomGenerator gen;
+
+  rand_init(&rnd, 301);
+  rand_gen_init(&gen, FLAGS_compression_ratio);
+  ensure_dir(FLAGS_save_sql_full);
+  write_text_file(FLAGS_save_sql_full, "schema.sql", kSchemaSql);
+
+  char* benchmarks = FLAGS_benchmarks;
+  while (benchmarks != NULL) {
+    char* sep = strchr(benchmarks, ',');
+    size_t name_len = sep == NULL ? strlen(benchmarks) : (size_t)(sep - benchmarks);
+    char name[100];
+    if (name_len >= sizeof(name)) {
+      fprintf(stderr, "benchmark name too long\n");
+      exit(1);
+    }
+    strncpy(name, benchmarks, name_len);
+    name[name_len] = '\0';
+
+    if (!strcmp(name, "fillseq")) {
+      write_full_sql_file(FLAGS_save_sql_full, "fillseq", SQL_FULL_WRITE,
+                          SQL_FULL_SEQUENTIAL, FLAGS_num, FLAGS_value_size,
+                          &rnd, &gen);
+    } else if (!strcmp(name, "fillrandom")) {
+      write_full_sql_file(FLAGS_save_sql_full, "fillrandom", SQL_FULL_WRITE,
+                          SQL_FULL_RANDOM, FLAGS_num, FLAGS_value_size,
+                          &rnd, &gen);
+    } else if (!strcmp(name, "readseq")) {
+      write_full_sql_file(FLAGS_save_sql_full, "readseq", SQL_FULL_READ,
+                          SQL_FULL_SEQUENTIAL, reads, FLAGS_value_size,
+                          &rnd, &gen);
+    } else if (!strcmp(name, "readrandom")) {
+      write_full_sql_file(FLAGS_save_sql_full, "readrandom", SQL_FULL_READ,
+                          SQL_FULL_RANDOM, reads, FLAGS_value_size,
+                          &rnd, &gen);
+    } else if (strcmp(name, "")) {
+      fprintf(stderr, "warning: skipping expanded SQL for '%s'\n", name);
+    }
+
+    benchmarks = sep == NULL ? NULL : sep + 1;
+  }
+
+  write_text_file(
+      FLAGS_save_sql_full,
+      "README.md",
+      "# Expanded SQLite Benchmark SQL\n"
+      "\n"
+      "These files contain complete SQL statements with key/value blobs encoded\n"
+      "as `X'...'` literals. Large write benchmarks can generate multi-GB SQL\n"
+      "files because each value byte is written as two hex characters.\n");
+
+  fprintf(stderr, "Saved expanded SQL to %s\n", FLAGS_save_sql_full);
 }
