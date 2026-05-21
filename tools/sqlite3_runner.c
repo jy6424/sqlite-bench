@@ -23,6 +23,7 @@ static const char* benchmarks_arg = "fillseq,fillrandom,readrandom,readseq";
 static int num_arg = 1000000;
 static int reads_arg = -1;
 static int value_size_arg = 100;
+static int progress_arg = 0;
 static double compression_ratio_arg = 0.5;
 static sqlite3* db = NULL;
 
@@ -200,6 +201,9 @@ static void run_one(const char* name, const char* sql, bool is_write,
     }
     check_db(sqlite3_clear_bindings(stmt), "sqlite3_clear_bindings");
     check_db(sqlite3_reset(stmt), "sqlite3_reset");
+    if (progress_arg > 0 && (i + 1) % progress_arg == 0) {
+      fprintf(stderr, "%s progress: %d/%d\n", name, i + 1, operations);
+    }
   }
   uint64_t finish = now_micros();
   double seconds = (finish - start) / 1000000.0;
@@ -233,7 +237,7 @@ static void run_benchmark(const char* name) {
 static void usage(const char* argv0) {
   fprintf(stderr,
           "Usage: %s [--benchmarks=LIST] [--num=N] [--reads=N] "
-          "[--value_size=N] [--db=PATH]\n",
+          "[--value_size=N] [--progress=N] [--db=PATH]\n",
           argv0);
 }
 
@@ -247,6 +251,8 @@ int main(int argc, char** argv) {
       reads_arg = atoi(argv[i] + 8);
     } else if (strncmp(argv[i], "--value_size=", 13) == 0) {
       value_size_arg = atoi(argv[i] + 13);
+    } else if (strncmp(argv[i], "--progress=", 11) == 0) {
+      progress_arg = atoi(argv[i] + 11);
     } else if (strncmp(argv[i], "--compression_ratio=", 20) == 0) {
       compression_ratio_arg = atof(argv[i] + 20);
     } else if (strncmp(argv[i], "--db=", 5) == 0) {

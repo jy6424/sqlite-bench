@@ -121,6 +121,7 @@ $ ./sqlite3-runner \
     --benchmarks=fillrandom,readrandom,readseq \
     --num=1000000 \
     --value_size=1024 \
+    --progress=100000 \
     --db=sqlite3-runner.db
 ```
 
@@ -133,6 +134,7 @@ $ ./sqlite4-runner \
     --benchmarks=fillrandom,readrandom,readseq \
     --num=1000000 \
     --value_size=1024 \
+    --progress=100000 \
     --db=sqlite4-runner.db
 ```
 
