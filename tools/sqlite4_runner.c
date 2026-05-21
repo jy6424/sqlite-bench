@@ -95,7 +95,7 @@ static char* compressible_string(Random* rnd, double compressed_fraction,
 
 static void rand_gen_init(RandomGenerator* gen, double compression_ratio) {
   Random rnd;
-  gen->data_ = malloc(1048576);
+  gen->data_ = malloc(1048576 + 100);
   if (gen->data_ == NULL) die("malloc failed");
   gen->data_size_ = 0;
   gen->pos_ = 0;
@@ -207,11 +207,11 @@ static void run_one(const char* name, const char* sql_file, const char* op,
     char key[100];
     snprintf(key, sizeof(key), "%016d", k);
 
-    check_db(sqlite4_bind_blob(stmt, 1, key, 16, SQLITE4_STATIC, 0),
+    check_db(sqlite4_bind_blob(stmt, 1, key, 16, SQLITE4_TRANSIENT, 0),
              "sqlite4_bind_blob(key)");
     if (is_write) {
       char* value = rand_gen_generate(&gen, value_size);
-      check_db(sqlite4_bind_blob(stmt, 2, value, value_size, SQLITE4_STATIC, 0),
+      check_db(sqlite4_bind_blob(stmt, 2, value, value_size, SQLITE4_TRANSIENT, 0),
                "sqlite4_bind_blob(value)");
       int rc = sqlite4_step(stmt);
       if (rc != SQLITE4_DONE) check_db(rc, "sqlite4_step(write)");
