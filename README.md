@@ -82,3 +82,30 @@ $ ./sqlite-bench \
 
 For large write benchmarks, expanded SQL files can be much larger than the raw
 data because each byte is written as two hexadecimal characters.
+
+## Running a SQL plan with SQLite4
+
+Build the SQLite4 runner by pointing the make target at a SQLite4 header and
+library:
+
+```sh
+$ make sqlite4-runner \
+    SQLITE4_CFLAGS="-I/path/to/sqlite4/include" \
+    SQLITE4_LDFLAGS="-L/path/to/sqlite4/lib -lsqlite4"
+```
+
+Then generate and run a plan:
+
+```sh
+$ ./sqlite-bench \
+    --benchmarks=fillseq,fillrandom,readrandom,readseq \
+    --num=1000000 \
+    --value_size=1024 \
+    --save_sql=sql-plan
+
+$ ./sqlite4-runner --plan=sql-plan --db=sqlite4-bench.db
+```
+
+The runner prepares each template SQL statement once and then repeats
+`bind/step/reset`, matching the original benchmark structure more closely than
+executing expanded SQL text line by line.
