@@ -61,7 +61,7 @@ make sqlite3-runner
 
 make sqlite4-runner \
     SQLITE4_CFLAGS="-I/path/to/sqlite4" \
-    SQLITE4_LDFLAGS="/path/to/sqlite4/libsqlite4.a -llz4 -lz -lpthread -ldl -lm"
+    SQLITE4_LDFLAGS="/path/to/sqlite4/libsqlite4.a -lpthread -ldl -lm"
 ```
 
 2. 실행 (1000만개, 100byte = 약 1GB workload, progress=매 N개 마다 진행 상태 프린트, db=output DB 이름)
