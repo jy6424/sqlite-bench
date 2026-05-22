@@ -58,10 +58,10 @@ SQLite3 benchmark tool
 
 **주의사항**
 
-sqlite3 설정이 아래와 같이 되어있으니, sqlite4 컴파일 시 lsmInt.h 에서 LSM_DFLT_SAFETY `LSM_SAFETY_OFF` 로 설정하고 컴파일 후 돌리기
+sqlite3 설정이 아래와 같이 되어있으니, sqlite4도 full safety 설정으로 컴파일한 것을 사용하기
 ```
 sqlite3-runner:
-  PRAGMA synchronous = OFF
+  PRAGMA synchronous = FULL
   PRAGMA journal_mode = WAL
   PRAGMA locking_mode = EXCLUSIVE
 ```

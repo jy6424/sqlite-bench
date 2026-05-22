@@ -147,7 +147,7 @@ static void close_db(void) {
 static void open_db(void) {
   if (db == NULL) {
     check_db(sqlite3_open(db_path, &db), "sqlite3_open");
-    check_db(sqlite3_exec(db, "PRAGMA synchronous = OFF", NULL, NULL, NULL),
+    check_db(sqlite3_exec(db, "PRAGMA synchronous = FULL", NULL, NULL, NULL),
              "PRAGMA synchronous");
     check_db(sqlite3_exec(db, "PRAGMA journal_mode = WAL", NULL, NULL, NULL),
              "PRAGMA journal_mode");
