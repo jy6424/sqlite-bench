@@ -51,92 +51,44 @@ SQLite3 benchmark tool
   readrand100K  read N/1000 100K values in sequential order in async mode
 ```
 
-## Saving SQL templates
+## [DBS]
+### sqlite3 , sqlite4 측정 방법
 
-Use `--save_sql=DIR` to export reusable SQL templates and benchmark metadata
-without running the benchmark.
+1. 컴파일 (sqlite4는 컴파일 된 파일 주소로 바꿔서 쓰기)
 
 ```sh
-$ ./sqlite-bench \
+make sqlite3-runner
+
+make sqlite4-runner \
+    SQLITE4_CFLAGS="-I/path/to/sqlite4" \
+    SQLITE4_LDFLAGS="/path/to/sqlite4/libsqlite4.a -llz4 -lz -lpthread -ldl -lm"
+```
+
+2. 실행 (1000만개, 100byte = 약 1GB workload)
+
+```sh
+./sqlite3-runner \
     --benchmarks=fillseq,fillrandom,readrandom,readseq \
-    --num=1000000 \
+    --num=10000000 \
     --value_size=1024 \
-    --save_sql=sql-plan
-```
-
-This writes files such as `schema.sql`, `fillseq.sql`, `fillrandom.sql`,
-`readseq.sql`, `readrandom.sql`, and `benchmarks.tsv`. The SQL templates use
-parameters; the sequential/random behavior is described in `benchmarks.tsv` and
-must be reproduced by the runner when binding keys.
-
-Use `--save_sql_full=DIR` to export complete SQL statements with key and value
-blobs encoded as `X'...'` literals.
-
-```sh
-$ ./sqlite-bench \
-    --benchmarks=fillseq,fillrandom,readrandom,readseq \
-    --num=1000 \
-    --value_size=1024 \
-    --save_sql_full=sql-full
-```
-
-For large write benchmarks, expanded SQL files can be much larger than the raw
-data because each byte is written as two hexadecimal characters.
-
-## Running a SQL plan with SQLite4
-
-Build the SQLite4 runner by pointing the make target at a SQLite4 header and
-library:
-
-```sh
-$ make sqlite4-runner \
-    SQLITE4_CFLAGS="-I/path/to/sqlite4/include" \
-    SQLITE4_LDFLAGS="-L/path/to/sqlite4/lib -lsqlite4"
-```
-
-Then generate and run a plan:
-
-```sh
-$ ./sqlite-bench \
-    --benchmarks=fillseq,fillrandom,readrandom,readseq \
-    --num=1000000 \
-    --value_size=1024 \
-    --save_sql=sql-plan
-
-$ ./sqlite4-runner --plan=sql-plan --db=sqlite4-bench.db
-```
-
-The runner prepares each template SQL statement once and then repeats
-`bind/step/reset`, matching the original benchmark structure more closely than
-executing expanded SQL text line by line.
-
-## Running Prepared Workloads Directly
-
-Use the prepared runners to execute the same workload shape for SQLite3 and
-SQLite4 without generating a SQL plan:
-
-```sh
-$ make sqlite3-runner
-$ ./sqlite3-runner \
-    --benchmarks=fillrandom,readrandom,readseq \
-    --num=1000000 \
-    --value_size=1024 \
-    --progress=100000 \
+    --progress=1000000 \
     --db=sqlite3-runner.db
 ```
 
 ```sh
-$ make sqlite4-runner \
-    SQLITE4_CFLAGS="-I/path/to/sqlite4" \
-    SQLITE4_LDFLAGS="/path/to/sqlite4/libsqlite4.a -llz4 -lz -lpthread -ldl -lm"
-
-$ ./sqlite4-runner \
-    --benchmarks=fillrandom,readrandom,readseq \
-    --num=1000000 \
+./sqlite4-runner \
+    --benchmarks=fillseq,fillrandom,readrandom,readseq \
+    --num=10000000 \
     --value_size=1024 \
-    --progress=100000 \
+    --progress=1000000 \
     --db=sqlite4-runner.db
 ```
 
-Both runners prepare `REPLACE INTO test (key, value) VALUES (?, ?)` or
-`SELECT * FROM test WHERE key = ?` once, then repeat `bind/step/reset`.
+맨 앞에 linux `time` 커맨드 붙여서 시간 측정 가능. (이때는 fillseq, fillrandom 등 각 workload를 따로따로 돌려서 측정해야 각각을 측정할 수 있음.)
+
+[작동 방식]
+
+prepare `REPLACE INTO test (key, value) VALUES (?, ?)` or
+`SELECT * FROM test WHERE key = ?` once,
+
+then repeat `bind/step/reset`.
