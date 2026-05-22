@@ -56,6 +56,20 @@ SQLite3 benchmark tool
 
 1. 컴파일 (sqlite4는 컴파일 된 파일 주소로 바꿔서 쓰기)
 
+**주의사항**
+
+sqlite3 설정이 아래와 같이 되어있으니, sqlite4 컴파일 시 lsmInt.h 에서 LSM_DFLT_SAFETY `LSM_SAFETY_OFF` 로 설정하고 컴파일 후 돌리기
+```
+sqlite3-runner:
+  PRAGMA synchronous = OFF
+  PRAGMA journal_mode = WAL
+  PRAGMA locking_mode = EXCLUSIVE
+```
+
+---
+
+실행 c 코드 컴파일 커맨드
+
 ```sh
 make sqlite3-runner
 
