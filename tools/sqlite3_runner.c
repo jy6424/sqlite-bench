@@ -24,6 +24,7 @@ static int num_arg = 1000000;
 static int reads_arg = -1;
 static int value_size_arg = 100;
 static int progress_arg = 0;
+static int seed_arg = 301;
 static double compression_ratio_arg = 0.5;
 static sqlite3* db = NULL;
 
@@ -121,7 +122,7 @@ static void rand_gen_init(RandomGenerator* gen, double compression_ratio) {
   gen->data_size_ = 0;
   gen->pos_ = 0;
   gen->data_[0] = '\0';
-  rand_init(&rnd, 301);
+  rand_init(&rnd, (uint32_t)seed_arg);
   while (gen->data_size_ < 1048576) {
     char* piece = compressible_string(&rnd, compression_ratio, 100);
     strcat(gen->data_, piece);
@@ -256,7 +257,7 @@ static void run_benchmark(const char* name) {
 static void usage(const char* argv0) {
   fprintf(stderr,
           "Usage: %s [--benchmarks=LIST] [--num=N] [--reads=N] "
-          "[--value_size=N] [--progress=N] [--db=PATH]\n",
+          "[--value_size=N] [--progress=N] [--seed=N] [--db=PATH]\n",
           argv0);
 }
 
@@ -272,6 +273,8 @@ int main(int argc, char** argv) {
       value_size_arg = atoi(argv[i] + 13);
     } else if (strncmp(argv[i], "--progress=", 11) == 0) {
       progress_arg = atoi(argv[i] + 11);
+    } else if (strncmp(argv[i], "--seed=", 7) == 0) {
+      seed_arg = atoi(argv[i] + 7);
     } else if (strncmp(argv[i], "--compression_ratio=", 20) == 0) {
       compression_ratio_arg = atof(argv[i] + 20);
     } else if (strncmp(argv[i], "--db=", 5) == 0) {

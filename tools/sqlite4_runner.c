@@ -27,6 +27,7 @@ static int num_arg = 1000000;
 static int reads_arg = -1;
 static int value_size_arg = 100;
 static int progress_arg = 0;
+static int seed_arg = 301;
 static double compression_ratio_arg = 0.5;
 static sqlite4* db = NULL;
 
@@ -304,16 +305,16 @@ static void run_direct_benchmark(const char* name) {
   int reads = reads_arg < 0 ? num_arg : reads_arg;
   if (!strcmp(name, "fillseq")) {
     run_one_sql("fillseq", kWriteSql, "write", "sequential", num_arg,
-                value_size_arg, 301, compression_ratio_arg);
+                value_size_arg, seed_arg, compression_ratio_arg);
   } else if (!strcmp(name, "fillrandom")) {
     run_one_sql("fillrandom", kWriteSql, "write", "random", num_arg,
-                value_size_arg, 301, compression_ratio_arg);
+                value_size_arg, seed_arg, compression_ratio_arg);
   } else if (!strcmp(name, "readrandom")) {
     run_one_sql("readrandom", kReadSql, "read", "random", reads,
-                value_size_arg, 301, compression_ratio_arg);
+                value_size_arg, seed_arg, compression_ratio_arg);
   } else if (!strcmp(name, "readseq")) {
     run_one_sql("readseq", kReadSql, "read", "sequential", reads,
-                value_size_arg, 301, compression_ratio_arg);
+                value_size_arg, seed_arg, compression_ratio_arg);
   } else if (strcmp(name, "")) {
     fprintf(stderr, "unknown benchmark '%s'\n", name);
     exit(1);
@@ -363,7 +364,7 @@ static void run_plan(void) {
 static void usage(const char* argv0) {
   fprintf(stderr,
           "Usage: %s [--benchmarks=LIST] [--num=N] [--reads=N] "
-          "[--value_size=N] [--progress=N] [--db=PATH]\n"
+          "[--value_size=N] [--progress=N] [--seed=N] [--db=PATH]\n"
           "       %s --plan=DIR [--db=PATH]\n",
           argv0, argv0);
 }
@@ -382,6 +383,8 @@ int main(int argc, char** argv) {
       value_size_arg = atoi(argv[i] + 13);
     } else if (strncmp(argv[i], "--progress=", 11) == 0) {
       progress_arg = atoi(argv[i] + 11);
+    } else if (strncmp(argv[i], "--seed=", 7) == 0) {
+      seed_arg = atoi(argv[i] + 7);
     } else if (strncmp(argv[i], "--compression_ratio=", 20) == 0) {
       compression_ratio_arg = atof(argv[i] + 20);
     } else if (strncmp(argv[i], "--db=", 5) == 0) {
