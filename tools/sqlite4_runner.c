@@ -81,6 +81,21 @@ static uint32_t rand_uniform(Random* rand, int n) {
   return rand_next(rand) % n;
 }
 
+static int* random_permutation(Random* rnd, int n) {
+  int* keys = malloc(sizeof(int) * (size_t)n);
+  if (keys == NULL) die("malloc failed");
+  for (int i = 0; i < n; i++) {
+    keys[i] = i;
+  }
+  for (int i = n - 1; i > 0; i--) {
+    int j = (int)(rand_next(rnd) % (uint32_t)(i + 1));
+    int tmp = keys[i];
+    keys[i] = keys[j];
+    keys[j] = tmp;
+  }
+  return keys;
+}
+
 static char* random_string(Random* rnd, int len) {
   char* dst = malloc((size_t)len + 1);
   if (dst == NULL) die("malloc failed");
@@ -209,6 +224,7 @@ static void run_one_sql(const char* name, const char* sql, const char* op,
   bool is_random = strcmp(key_order, "random") == 0;
   Random rnd;
   RandomGenerator gen = {0};
+  int* random_keys = NULL;
   sqlite4_stmt* stmt = NULL;
 
   if (is_write) {
@@ -218,6 +234,9 @@ static void run_one_sql(const char* name, const char* sql, const char* op,
     open_db();
   }
   rand_init(&rnd, (uint32_t)seed);
+  if (is_write && is_random) {
+    random_keys = random_permutation(&rnd, operations);
+  }
 
   check_db(sqlite4_prepare(db, sql, -1, &stmt, 0), "sqlite4_prepare");
   if (stmt == NULL) die("empty SQL statement");
@@ -226,7 +245,8 @@ static void run_one_sql(const char* name, const char* sql, const char* op,
   int done = 0;
   int64_t bytes = 0;
   for (int i = 0; i < operations; i++) {
-    int k = is_random ? (int)(rand_next(&rnd) % operations) : i;
+    int k = is_random ? (is_write ? random_keys[i] :
+        (int)(rand_next(&rnd) % operations)) : i;
     char key[100];
     snprintf(key, sizeof(key), "%016d", k);
 
@@ -266,6 +286,7 @@ static void run_one_sql(const char* name, const char* sql, const char* op,
 
   check_db(sqlite4_finalize(stmt), "sqlite4_finalize");
   if (is_write) free(gen.data_);
+  free(random_keys);
 }
 
 static void run_one_plan(const char* name, const char* sql_file, const char* op,

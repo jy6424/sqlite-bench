@@ -31,6 +31,22 @@ enum SqlFullOrder {
   SQL_FULL_RANDOM
 };
 
+static int* random_permutation(Random* rnd, int n) {
+  int* keys = malloc(sizeof(int) * (size_t)n);
+  if (keys == NULL) {
+    fprintf(stderr, "malloc failed\n");
+    exit(1);
+  }
+  for (int i = 0; i < n; i++) keys[i] = i;
+  for (int i = n - 1; i > 0; i--) {
+    int j = (int)(rand_next(rnd) % (uint32_t)(i + 1));
+    int tmp = keys[i];
+    keys[i] = keys[j];
+    keys[j] = tmp;
+  }
+  return keys;
+}
+
 static void ensure_dir(const char* dir) {
   if (mkdir(dir, 0755) != 0 && errno != EEXIST) {
     fprintf(stderr, "mkdir error for '%s': %s\n", dir, strerror(errno));
@@ -126,8 +142,13 @@ static void write_full_sql_file(const char* dir, const char* name,
   snprintf(file_name, sizeof(file_name), "%s.sql", name);
 
   FILE* file = open_output_file(dir, file_name);
+  int* random_keys =
+      (op == SQL_FULL_WRITE && order == SQL_FULL_RANDOM) ?
+      random_permutation(rnd, operations) : NULL;
   for (int i = 0; i < operations; i++) {
-    int k = order == SQL_FULL_SEQUENTIAL ? i : (int)(rand_next(rnd) % operations);
+    int k = order == SQL_FULL_SEQUENTIAL ? i :
+        (op == SQL_FULL_WRITE ? random_keys[i] :
+         (int)(rand_next(rnd) % operations));
     char key[100];
     snprintf(key, sizeof(key), "%016d", k);
 
@@ -145,6 +166,7 @@ static void write_full_sql_file(const char* dir, const char* name,
       fprintf(file, "';\n");
     }
   }
+  free(random_keys);
   fclose(file);
 }
 

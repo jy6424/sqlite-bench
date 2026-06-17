@@ -79,6 +79,19 @@ static uint32_t rand_uniform(Random* rand, int n) {
   return rand_next(rand) % n;
 }
 
+static int* random_permutation(Random* rnd, int n) {
+  int* keys = malloc(sizeof(int) * (size_t)n);
+  if (keys == NULL) die("malloc failed");
+  for (int i = 0; i < n; i++) keys[i] = i;
+  for (int i = n - 1; i > 0; i--) {
+    int j = (int)(rand_next(rnd) % (uint32_t)(i + 1));
+    int tmp = keys[i];
+    keys[i] = keys[j];
+    keys[j] = tmp;
+  }
+  return keys;
+}
+
 static char* random_string(Random* rnd, int len) {
   char* dst = malloc((size_t)len + 1);
   if (dst == NULL) die("malloc failed");
@@ -167,6 +180,7 @@ static void run_one(const char* name, const char* sql, bool is_write,
                     bool is_random, int operations) {
   Random rnd;
   RandomGenerator gen = {0};
+  int* random_keys = NULL;
   sqlite3_stmt* stmt = NULL;
   int64_t bytes = 0;
 
@@ -177,11 +191,15 @@ static void run_one(const char* name, const char* sql, bool is_write,
     open_db();
   }
   rand_init(&rnd, 301);
+  if (is_write && is_random) {
+    random_keys = random_permutation(&rnd, operations);
+  }
   check_db(sqlite3_prepare_v2(db, sql, -1, &stmt, NULL), "sqlite3_prepare_v2");
 
   uint64_t start = now_micros();
   for (int i = 0; i < operations; i++) {
-    int k = is_random ? (int)(rand_next(&rnd) % operations) : i;
+    int k = is_random ? (is_write ? random_keys[i] :
+        (int)(rand_next(&rnd) % operations)) : i;
     char key[100];
     snprintf(key, sizeof(key), "%016d", k);
     check_db(sqlite3_bind_blob(stmt, 1, key, 16, SQLITE_TRANSIENT),
@@ -216,6 +234,7 @@ static void run_one(const char* name, const char* sql, bool is_write,
   }
   check_db(sqlite3_finalize(stmt), "sqlite3_finalize");
   if (is_write) free(gen.data_);
+  free(random_keys);
 }
 
 static void run_benchmark(const char* name) {
